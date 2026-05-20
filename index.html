@@ -593,8 +593,8 @@ class Planet {
     this.x += this.vx * dt;
     this.y += this.vy * dt;
     if (this.isPlayer) {
-      this.vx *= Math.pow(0.05, dt);
-      this.vy *= Math.pow(0.05, dt);
+      this.vx *= Math.pow(0.12, dt);
+      this.vy *= Math.pow(0.12, dt);
     } else {
       // No damping — NPCs drift forever; cap top speed instead (per difficulty)
       const v = Math.hypot(this.vx, this.vy);
@@ -843,6 +843,9 @@ const input = {
   dir: { x: 0, y: 0 }
 };
 
+const JOYSTICK_MAX = 50;   // max displacement before center follows
+const JOYSTICK_DEAD = 4;   // dead zone in px
+
 function pointerStart(x, y) {
   audio.init(); audio.resume();
   input.active = true;
@@ -852,6 +855,14 @@ function pointerStart(x, y) {
 function pointerMove(x, y) {
   if (!input.active) return;
   input.tx = x; input.ty = y;
+  // Follow-center: if finger goes beyond JOYSTICK_MAX, slide the center
+  const dx = input.tx - input.cx;
+  const dy = input.ty - input.cy;
+  const d = Math.hypot(dx, dy);
+  if (d > JOYSTICK_MAX) {
+    input.cx += (dx / d) * (d - JOYSTICK_MAX);
+    input.cy += (dy / d) * (d - JOYSTICK_MAX);
+  }
 }
 function pointerEnd() {
   input.active = false;
@@ -897,13 +908,20 @@ function computeInputDir() {
     dx = input.tx - input.cx;
     dy = input.ty - input.cy;
     const d = Math.hypot(dx, dy);
-    const max = 80;
-    if (d > 0) {
-      const mag = Math.min(d / max, 1);
+    // Dead zone: 8px to avoid micro-tremors
+    // Ramp zone: 8..60px maps to 0..1 (smaller = more responsive)
+    const dead = 8, max = 60;
+    if (d < dead) {
+      dx = 0; dy = 0;
+    } else {
+      const mag = Math.min((d - dead) / (max - dead), 1);
       dx = dx / d * mag;
       dy = dy / d * mag;
-    } else {
-      dx = 0; dy = 0;
+      // Drag center toward thumb so joystick "follows" long swipes
+      if (d > max) {
+        input.cx += (input.tx - input.cx) - dx / Math.abs(mag || 1) * max;
+        input.cy += (input.ty - input.cy) - dy / Math.abs(mag || 1) * max;
+      }
     }
   } else {
     if (input.keys['w'] || input.keys['arrowup']) dy -= 1;
@@ -1488,10 +1506,10 @@ function update(dt) {
       }
     }
     // Player movement
-    const accel = 1400;
+    const accel = 2200;
     state.player.vx += input.dir.x * accel * dt;
     state.player.vy += input.dir.y * accel * dt;
-    const maxV = 320 + state.player.level * 20;
+    const maxV = 380 + state.player.level * 25;
     const v = Math.hypot(state.player.vx, state.player.vy);
     if (v > maxV) {
       state.player.vx = state.player.vx / v * maxV;
