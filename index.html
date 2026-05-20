@@ -1,0 +1,1547 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>恒星的一生</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: #000;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+  color: #e0e8ff;
+}
+#game {
+  display: block;
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+.overlay {
+  position: fixed; inset: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 50% 50%, rgba(20,10,40,0.92), rgba(0,0,10,0.96));
+  color: #e0e8ff;
+  z-index: 10;
+  padding: 24px;
+  text-align: center;
+}
+.overlay.visible { display: flex; }
+.overlay#victory.visible { overflow-y: auto; justify-content: flex-start; padding-top: 40px; padding-bottom: 40px; }
+.overlay h1 {
+  font-size: clamp(36px, 8vw, 64px);
+  margin-bottom: 16px;
+  letter-spacing: 4px;
+  background: linear-gradient(180deg, #fff0a0 0%, #ff8040 60%, #c01020 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 20px rgba(255,120,40,0.6));
+  font-weight: 900;
+}
+.overlay h2 {
+  font-size: clamp(22px, 5vw, 32px);
+  margin-bottom: 12px;
+  color: #ff6060;
+  text-shadow: 0 0 10px rgba(255,80,80,0.5);
+}
+.overlay p {
+  font-size: clamp(14px, 3.5vw, 18px);
+  margin: 4px 0;
+  color: #b0c8ff;
+}
+.overlay .big-stat {
+  font-size: clamp(20px, 5vw, 28px);
+  color: #ffe040;
+  margin: 8px 0;
+  text-shadow: 0 0 8px rgba(255,200,40,0.5);
+}
+.overlay button {
+  margin-top: 28px;
+  padding: 14px 40px;
+  font-size: clamp(16px, 4vw, 20px);
+  background: linear-gradient(180deg, #4080ff, #1f47a0);
+  color: white;
+  border: 2px solid #80c0ff;
+  border-radius: 10px;
+  cursor: pointer;
+  letter-spacing: 2px;
+  font-weight: bold;
+  box-shadow: 0 0 24px rgba(80,160,255,0.5), inset 0 0 12px rgba(255,255,255,0.15);
+  transition: transform 0.1s;
+}
+.overlay button:active { transform: scale(0.95); }
+.overlay .hint {
+  margin-top: 20px;
+  font-size: 13px;
+  opacity: 0.7;
+  color: #80a0d0;
+}
+.overlay .timeline {
+  margin: 16px auto;
+  font-size: clamp(13px, 3.2vw, 15px);
+  line-height: 1.7;
+  color: #c0d8ff;
+  max-width: 380px;
+}
+.overlay .flow-title, .overlay .causal-title {
+  font-weight: bold;
+  font-size: clamp(15px, 4vw, 18px);
+  color: #80c0ff;
+  margin: 14px 0 8px;
+  letter-spacing: 2px;
+}
+.overlay .flow {
+  margin: 12px auto 4px;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+.overlay .flow-item {
+  align-self: center;
+  padding: 7px 22px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(80,150,255,0.32), rgba(30,70,180,0.28));
+  border: 1px solid rgba(140,200,255,0.65);
+  color: #f0f4ff;
+  font-size: clamp(13px, 3.4vw, 15px);
+  font-weight: 600;
+  letter-spacing: 1px;
+  box-shadow: 0 0 14px rgba(80,160,255,0.28), inset 0 1px 0 rgba(255,255,255,0.18);
+}
+.overlay .flow-step {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 6px 0;
+  padding: 0 12px;
+}
+.overlay .flow-arrow {
+  color: #ffe040;
+  font-size: clamp(22px, 6vw, 28px);
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 0 12px rgba(255,200,40,0.7), 0 0 4px rgba(255,160,0,0.9);
+  flex-shrink: 0;
+  display: inline-block;
+}
+.overlay .flow-reason {
+  color: #c8d8f0;
+  font-size: clamp(11px, 2.8vw, 13px);
+  line-height: 1.4;
+  text-align: left;
+  max-width: 220px;
+  opacity: 0.95;
+}
+#mute {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top, 12px));
+  right: max(12px, env(safe-area-inset-right, 12px));
+  width: 42px; height: 42px;
+  background: rgba(0,10,30,0.6);
+  border: 1px solid #4080ff;
+  border-radius: 50%;
+  color: #e0e8ff;
+  font-size: 18px;
+  cursor: pointer;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<button id="mute" aria-label="静音">🔊</button>
+
+<div class="overlay visible" id="start">
+  <h1>恒星的一生</h1>
+  <p>操控你的星球，吃掉比你小的</p>
+  <p>从 星际尘埃 一路演化到 黑洞</p>
+  <button id="startBtn">开 始 游 戏</button>
+  <p class="hint">📱 触屏：在屏幕任意位置拖动 &nbsp;·&nbsp; 💻 键盘：WASD / 方向键</p>
+</div>
+
+<div class="overlay" id="gameover">
+  <h2>游 戏 结 束</h2>
+  <p id="goStage" class="big-stat"></p>
+  <p id="goScore" class="big-stat"></p>
+  <button id="restartBtn">再 来 一 次</button>
+</div>
+
+<div class="overlay" id="victory">
+  <h1>恒星演化完成！</h1>
+  <p id="vScore" class="big-stat"></p>
+  <div class="timeline" id="vTimeline"></div>
+  <button id="restartVBtn">再 玩 一 次</button>
+</div>
+
+<script>
+'use strict';
+
+// ============================================================================
+// Constants & Configuration
+// ============================================================================
+const LEVELS = [
+  // i: inner color, o: outer color, g: glow color, xp: xp needed to reach next
+  { name: '星际尘埃', r: 12, i: '#e8e8f0', o: '#404060', g: '#a0a0c0', xp: 30 },
+  { name: '小行星',   r: 18, i: '#c0906a', o: '#3a2010', g: '#806040', xp: 60 },
+  { name: '原恒星',   r: 26, i: '#ff8060', o: '#601810', g: '#ff4020', xp: 120 },
+  { name: '主序星',   r: 36, i: '#ffffa0', o: '#ff8020', g: '#ffe040', xp: 200 },
+  { name: '红巨星',   r: 54, i: '#ffb060', o: '#902000', g: '#ff7030', xp: 300 },
+  { name: '超巨星',   r: 70, i: '#d0e8ff', o: '#2050b0', g: '#80b0ff', xp: 400 },
+  { name: '超新星',   r: 100, i: '#ffffff', o: '#ffd040', g: '#ffffff', xp: 1 },
+  { name: '黑洞',     r: 55, i: '#000000', o: '#200030', g: '#a040ff', xp: Infinity }
+];
+// Cause-and-effect text shown on victory screen between consecutive levels.
+// CAUSAL[i] explains why LEVEL[i] becomes LEVEL[i+1].
+const CAUSAL = [
+  '星际气体云在引力作用下不断聚集',
+  '尘埃团块持续吸积，质量与温度上升',
+  '核心温度突破千万度，氢核聚变点燃',
+  '稳定燃烧氢元素，恒星进入主序阶段',
+  '核心氢耗尽，外壳膨胀冷却',
+  '外层进一步膨胀，演化为蓝白超巨星',
+  '核心铁聚变停止，引力坍缩触发超新星爆发',
+  '核心残骸坍缩成无限致密的黑洞'
+];
+const LEVEL_DURATION = 100; // seconds per stage
+const WORLD_W = 2400;
+const WORLD_H = 2400;
+const MAX_NPCS = 22;
+const MAX_PARTICLES = 220;
+const HP_MAX = 5;
+const COMET_MIN_INTERVAL = 7;
+const COMET_RAND_INTERVAL = 8;
+
+// ============================================================================
+// Canvas setup
+// ============================================================================
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+let dpr = 1, W = 0, H = 0;
+
+function resize() {
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = Math.floor(W * dpr);
+  canvas.height = Math.floor(H * dpr);
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', resize);
+resize();
+
+// ============================================================================
+// Audio Engine — Web Audio API synthesis, no external files
+// ============================================================================
+class AudioEngine {
+  constructor() {
+    this.ctx = null;
+    this.muted = false;
+    this.bgPlaying = false;
+    this.chordIndex = 0;
+    this.chords = [
+      [130.81, 164.81, 196.00], // C minor-ish low
+      [110.00, 130.81, 164.81], // A
+      [ 87.31, 110.00, 130.81], // F
+      [ 98.00, 123.47, 146.83]  // G
+    ];
+  }
+  init() {
+    if (this.ctx) return;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      this.ctx = new AC();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = 0.55;
+      this.master.connect(this.ctx.destination);
+      this.musicBus = this.ctx.createGain();
+      this.musicBus.gain.value = 0.45;
+      this.musicBus.connect(this.master);
+      this.sfxBus = this.ctx.createGain();
+      this.sfxBus.gain.value = 1.0;
+      this.sfxBus.connect(this.master);
+    } catch (e) {
+      this.ctx = null;
+    }
+  }
+  resume() {
+    if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+  }
+  _now() { return this.ctx.currentTime; }
+
+  tone(freq, dur, opts = {}) {
+    if (!this.ctx || this.muted) return;
+    const { type = 'sine', vol = 0.3, end = 0.001, freqEnd = null, bus = 'sfx', attack = 0.005 } = opts;
+    const now = this._now();
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, now);
+    if (freqEnd) osc.frequency.exponentialRampToValueAtTime(Math.max(freqEnd, 1), now + dur);
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(vol, now + attack);
+    g.gain.exponentialRampToValueAtTime(Math.max(end, 0.0001), now + dur);
+    osc.connect(g);
+    g.connect(bus === 'music' ? this.musicBus : this.sfxBus);
+    osc.start(now);
+    osc.stop(now + dur + 0.05);
+  }
+
+  noise(dur, opts = {}) {
+    if (!this.ctx || this.muted) return;
+    const { filter = 1000, vol = 0.3, type = 'lowpass', bus = 'sfx' } = opts;
+    const now = this._now();
+    const len = Math.floor(this.ctx.sampleRate * dur);
+    const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    const filt = this.ctx.createBiquadFilter();
+    filt.type = type;
+    filt.frequency.value = filter;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(vol, now);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+    src.connect(filt);
+    filt.connect(g);
+    g.connect(bus === 'music' ? this.musicBus : this.sfxBus);
+    src.start(now);
+    src.stop(now + dur + 0.05);
+  }
+
+  eatSound() {
+    this.tone(280, 0.18, { type: 'sine', vol: 0.35, freqEnd: 900 });
+    this.tone(560, 0.12, { type: 'triangle', vol: 0.15, freqEnd: 1400 });
+  }
+  cometSound() {
+    this.tone(420, 0.3, { type: 'triangle', vol: 0.3, freqEnd: 1400 });
+    this.noise(0.2, { filter: 6000, vol: 0.12, type: 'highpass' });
+  }
+  hitSound() {
+    this.tone(70, 0.3, { type: 'square', vol: 0.4, freqEnd: 30 });
+    this.noise(0.25, { filter: 500, vol: 0.4 });
+  }
+  levelUpSound() {
+    if (!this.ctx || this.muted) return;
+    const base = this._now();
+    [261.63, 329.63, 392.00, 523.25].forEach((f, i) => {
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(f, base + i * 0.08);
+      g.gain.setValueAtTime(0.0001, base + i * 0.08);
+      g.gain.exponentialRampToValueAtTime(0.28, base + i * 0.08 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, base + i * 0.08 + 0.7);
+      osc.connect(g);
+      g.connect(this.sfxBus);
+      osc.start(base + i * 0.08);
+      osc.stop(base + i * 0.08 + 0.75);
+    });
+  }
+  supernovaSound() {
+    if (!this.ctx || this.muted) return;
+    // Rising rumble + white burst + falling tail
+    this.noise(3.0, { filter: 800, vol: 0.5 });
+    const now = this._now();
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(40, now);
+    osc.frequency.exponentialRampToValueAtTime(120, now + 1.5);
+    osc.frequency.exponentialRampToValueAtTime(30, now + 3.0);
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.4, now + 0.5);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 3.0);
+    osc.connect(g);
+    g.connect(this.sfxBus);
+    osc.start(now);
+    osc.stop(now + 3.05);
+    // High shimmer
+    setTimeout(() => {
+      if (this.muted || !this.ctx) return;
+      this.tone(1200, 0.6, { type: 'sine', vol: 0.18, freqEnd: 600 });
+      this.tone(1800, 0.5, { type: 'sine', vol: 0.12, freqEnd: 900 });
+    }, 600);
+  }
+  healSound() {
+    this.tone(523, 0.25, { type: 'sine', vol: 0.3, freqEnd: 784 });
+  }
+  gameOverSound() {
+    if (!this.ctx || this.muted) return;
+    const base = this._now();
+    [392.00, 329.63, 261.63, 196.00].forEach((f, i) => {
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      const filt = this.ctx.createBiquadFilter();
+      filt.type = 'lowpass';
+      filt.frequency.setValueAtTime(2000, base + i * 0.2);
+      filt.frequency.exponentialRampToValueAtTime(300, base + i * 0.2 + 0.8);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f, base + i * 0.2);
+      g.gain.setValueAtTime(0.0001, base + i * 0.2);
+      g.gain.exponentialRampToValueAtTime(0.3, base + i * 0.2 + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.0001, base + i * 0.2 + 0.8);
+      osc.connect(filt);
+      filt.connect(g);
+      g.connect(this.sfxBus);
+      osc.start(base + i * 0.2);
+      osc.stop(base + i * 0.2 + 0.85);
+    });
+  }
+  victorySound() {
+    if (!this.ctx || this.muted) return;
+    const base = this._now();
+    [261.63, 329.63, 392.00, 523.25, 659.25].forEach((f, i) => {
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(f, base + i * 0.15);
+      g.gain.setValueAtTime(0.0001, base + i * 0.15);
+      g.gain.exponentialRampToValueAtTime(0.28, base + i * 0.15 + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.0001, base + i * 0.15 + 1.5);
+      osc.connect(g);
+      g.connect(this.sfxBus);
+      osc.start(base + i * 0.15);
+      osc.stop(base + i * 0.15 + 1.55);
+    });
+  }
+
+  startBg() {
+    if (this.bgPlaying || !this.ctx) return;
+    this.bgPlaying = true;
+    // Drone (deep space hum)
+    const drone = this.ctx.createOscillator();
+    const dGain = this.ctx.createGain();
+    drone.type = 'sine';
+    drone.frequency.value = 55;
+    dGain.gain.value = 0.07;
+    drone.connect(dGain);
+    dGain.connect(this.musicBus);
+    drone.start();
+    this._drone = { osc: drone, gain: dGain };
+
+    // Slow chord pad cycle
+    this._chordTimer = setInterval(() => this._playChord(), 4000);
+    this._playChord();
+
+    // Sparkle high notes (star twinkles)
+    this._sparkleTimer = setInterval(() => {
+      if (this.muted) return;
+      if (Math.random() < 0.4) {
+        const f = 1200 + Math.random() * 1600;
+        this._sparkle(f);
+      }
+    }, 700);
+  }
+  _playChord() {
+    if (!this.ctx || this.muted) return;
+    const ch = this.chords[this.chordIndex];
+    this.chordIndex = (this.chordIndex + 1) % this.chords.length;
+    const now = this._now();
+    ch.forEach((f, idx) => {
+      const osc = this.ctx.createOscillator();
+      const filt = this.ctx.createBiquadFilter();
+      const g = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.value = f;
+      filt.type = 'lowpass';
+      filt.frequency.value = 350 + idx * 50;
+      filt.Q.value = 1;
+      g.gain.setValueAtTime(0.0001, now);
+      g.gain.linearRampToValueAtTime(0.045, now + 1.0);
+      g.gain.linearRampToValueAtTime(0.045, now + 3.0);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + 4.0);
+      osc.connect(filt);
+      filt.connect(g);
+      g.connect(this.musicBus);
+      osc.start(now);
+      osc.stop(now + 4.1);
+    });
+  }
+  _sparkle(freq) {
+    const now = this._now();
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.05, now + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.4);
+    osc.connect(g);
+    g.connect(this.musicBus);
+    osc.start(now);
+    osc.stop(now + 0.45);
+  }
+  toggleMute() {
+    this.muted = !this.muted;
+    if (this.master) this.master.gain.value = this.muted ? 0 : 0.55;
+    return this.muted;
+  }
+}
+const audio = new AudioEngine();
+
+// ============================================================================
+// Background stars (parallax)
+// ============================================================================
+const STARS = [];
+for (let i = 0; i < 280; i++) {
+  STARS.push({
+    x: Math.random() * 1.5,         // 0..1.5 (will tile in screen space)
+    y: Math.random() * 1.5,
+    r: Math.random() * 1.8 + 0.4,
+    z: 0.15 + Math.random() * 0.75, // parallax depth
+    twinkle: Math.random() < 0.25,
+    phase: Math.random() * Math.PI * 2
+  });
+}
+
+// ============================================================================
+// Planet class
+// ============================================================================
+class Planet {
+  constructor(x, y, level, isPlayer = false) {
+    this.x = x; this.y = y;
+    this.vx = 0; this.vy = 0;
+    this.level = level;
+    this.isPlayer = isPlayer;
+    this.pulse = Math.random() * Math.PI * 2;
+    this.invul = 0;
+    this.dying = false;
+    this.eyeDir = 0;
+    this.spawnT = 0.4; // grow-in animation
+  }
+  get radius() { return LEVELS[this.level].r; }
+  effectiveR() {
+    const spawnScale = Math.min(1, 1 - this.spawnT / 0.4);
+    const pulseScale = 1 + Math.sin(this.pulse) * 0.05;
+    return this.radius * spawnScale * pulseScale;
+  }
+  update(dt) {
+    this.pulse += dt * 2;
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
+    if (this.isPlayer) {
+      this.vx *= Math.pow(0.05, dt);
+      this.vy *= Math.pow(0.05, dt);
+    } else {
+      // No damping — NPCs drift forever; cap top speed instead
+      const v = Math.hypot(this.vx, this.vy);
+      const maxV = 60;
+      if (v > maxV) {
+        this.vx = this.vx / v * maxV;
+        this.vy = this.vy / v * maxV;
+      }
+    }
+    if (this.invul > 0) this.invul -= dt;
+    if (this.spawnT > 0) this.spawnT -= dt;
+    // eye direction follows velocity slightly
+    const v = Math.hypot(this.vx, this.vy);
+    if (v > 5) this.eyeDir = Math.atan2(this.vy, this.vx);
+  }
+  render(ctx, camX, camY) {
+    const sx = this.x - camX;
+    const sy = this.y - camY;
+    const r = this.effectiveR();
+    // Cull
+    if (sx < -r - 100 || sx > W + r + 100 || sy < -r - 100 || sy > H + r + 100) return;
+    // Invul blink
+    if (this.invul > 0 && Math.floor(this.invul * 12) % 2 === 0) return;
+    const lv = LEVELS[this.level];
+
+    // Black hole: special render
+    if (this.level === 7) {
+      // accretion disk rings
+      for (let i = 0; i < 3; i++) {
+        ctx.strokeStyle = `rgba(180,90,255,${0.55 - i * 0.15})`;
+        ctx.lineWidth = 4 - i;
+        ctx.beginPath();
+        ctx.ellipse(sx, sy, r * (1.6 + i * 0.3), r * (0.5 + i * 0.1), this.pulse * 0.5 + i, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      // dark body
+      const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
+      grad.addColorStop(0, '#000');
+      grad.addColorStop(0.8, '#100018');
+      grad.addColorStop(1, '#30005a');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill();
+      return;
+    }
+
+    // Supernova: bright burst
+    if (this.level === 6) {
+      ctx.shadowBlur = r * 1.5;
+      ctx.shadowColor = '#ffffff';
+      const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, r * 1.5);
+      grad.addColorStop(0, '#ffffff');
+      grad.addColorStop(0.4, '#ffe080');
+      grad.addColorStop(0.8, '#ff6020');
+      grad.addColorStop(1, 'rgba(255,40,0,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(sx, sy, r * 1.5, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      return;
+    }
+
+    // Glow halo
+    ctx.shadowBlur = Math.max(8, r * 0.6);
+    ctx.shadowColor = lv.g;
+
+    // Body
+    const grad = ctx.createRadialGradient(sx - r * 0.25, sy - r * 0.25, r * 0.1, sx, sy, r);
+    grad.addColorStop(0, lv.i);
+    grad.addColorStop(0.7, lv.o);
+    grad.addColorStop(1, lv.o);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(sx, sy, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Subtle surface speckle for larger stars (red giant+, supergiant)
+    if (this.level >= 4) {
+      ctx.globalAlpha = 0.35;
+      ctx.fillStyle = lv.i;
+      const spots = 5;
+      for (let i = 0; i < spots; i++) {
+        const a = (i / spots) * Math.PI * 2 + this.pulse * 0.3;
+        const rd = r * 0.4;
+        const px = sx + Math.cos(a) * rd;
+        const py = sy + Math.sin(a) * rd;
+        ctx.beginPath();
+        ctx.arc(px, py, r * 0.15, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // Face (levels 2+ : protostar through supergiant)
+    if (this.level >= 2 && this.level <= 5) {
+      const eyeOff = r * 0.32;
+      const eyeR = Math.max(2, r * 0.13);
+      const eyeY = sy - r * 0.18;
+      // eye whites
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(sx - eyeOff, eyeY, eyeR, 0, Math.PI * 2);
+      ctx.arc(sx + eyeOff, eyeY, eyeR, 0, Math.PI * 2);
+      ctx.fill();
+      // pupils
+      const pdx = Math.cos(this.eyeDir) * eyeR * 0.4;
+      const pdy = Math.sin(this.eyeDir) * eyeR * 0.4;
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.arc(sx - eyeOff + pdx, eyeY + pdy, eyeR * 0.5, 0, Math.PI * 2);
+      ctx.arc(sx + eyeOff + pdx, eyeY + pdy, eyeR * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+      // smile
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = Math.max(1.5, r * 0.05);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(sx, sy + r * 0.05, r * 0.42, 0.18 * Math.PI, 0.82 * Math.PI);
+      ctx.stroke();
+    }
+
+    // Player marker arrow when very small / invuln
+    if (this.isPlayer && this.level === 0) {
+      ctx.strokeStyle = '#80c0ff';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(sx, sy, r + 6, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+}
+
+// ============================================================================
+// Particle class
+// ============================================================================
+class Particle {
+  constructor(x, y, vx, vy, life, color, target = null) {
+    this.x = x; this.y = y;
+    this.vx = vx; this.vy = vy;
+    this.life = life;
+    this.maxLife = life;
+    this.color = color;
+    this.target = target;
+    this.size = 2 + Math.random() * 3;
+    this.homing = !!target;
+  }
+  update(dt) {
+    this.life -= dt;
+    if (this.target) {
+      const dx = this.target.x - this.x, dy = this.target.y - this.y;
+      const d = Math.hypot(dx, dy);
+      if (d > 0) {
+        const pull = 250 * dt;
+        this.vx += dx / d * pull;
+        this.vy += dy / d * pull;
+      }
+    }
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
+    this.vx *= Math.pow(0.1, dt);
+    this.vy *= Math.pow(0.1, dt);
+  }
+  render(ctx, camX, camY) {
+    const a = Math.max(0, this.life / this.maxLife);
+    ctx.globalAlpha = a;
+    ctx.fillStyle = this.color;
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = this.color;
+    ctx.beginPath();
+    ctx.arc(this.x - camX, this.y - camY, Math.max(0.5, this.size * a), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+  }
+}
+
+// ============================================================================
+// Game state
+// ============================================================================
+const state = {
+  phase: 'start', // start | playing | gameover | victory
+  player: null,
+  npcs: [],
+  particles: [],
+  comets: [],
+  hp: HP_MAX,
+  score: 0,
+  xp: 0,
+  cam: { x: 0, y: 0 },
+  shake: 0,
+  flash: 0,
+  flashColor: '#ffffff',
+  levelUpAnim: null,
+  supernovaT: 0,
+  maxLevel: 0,
+  timeline: [],
+  cometTimer: 0,
+  cometInterval: COMET_MIN_INTERVAL + Math.random() * COMET_RAND_INTERVAL,
+  levelTimer: LEVEL_DURATION
+};
+
+// ============================================================================
+// Input — virtual joystick + keyboard
+// ============================================================================
+const input = {
+  active: false,
+  cx: 0, cy: 0,    // joystick center on screen
+  tx: 0, ty: 0,    // current touch position
+  keys: {},
+  dir: { x: 0, y: 0 }
+};
+
+function pointerStart(x, y) {
+  audio.init(); audio.resume();
+  input.active = true;
+  input.cx = x; input.cy = y;
+  input.tx = x; input.ty = y;
+}
+function pointerMove(x, y) {
+  if (!input.active) return;
+  input.tx = x; input.ty = y;
+}
+function pointerEnd() {
+  input.active = false;
+}
+
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  if (e.touches.length > 0) {
+    const t = e.touches[0];
+    pointerStart(t.clientX, t.clientY);
+  }
+}, { passive: false });
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  if (e.touches.length > 0) {
+    const t = e.touches[0];
+    pointerMove(t.clientX, t.clientY);
+  }
+}, { passive: false });
+canvas.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  if (e.touches.length === 0) pointerEnd();
+}, { passive: false });
+canvas.addEventListener('touchcancel', (e) => { pointerEnd(); }, { passive: false });
+
+// Mouse for desktop testing
+canvas.addEventListener('mousedown', (e) => { pointerStart(e.clientX, e.clientY); });
+canvas.addEventListener('mousemove', (e) => { pointerMove(e.clientX, e.clientY); });
+canvas.addEventListener('mouseup', () => pointerEnd());
+canvas.addEventListener('mouseleave', () => pointerEnd());
+
+document.addEventListener('keydown', (e) => {
+  input.keys[e.key.toLowerCase()] = true;
+  audio.init(); audio.resume();
+});
+document.addEventListener('keyup', (e) => {
+  input.keys[e.key.toLowerCase()] = false;
+});
+
+function computeInputDir() {
+  let dx = 0, dy = 0;
+  if (input.active) {
+    dx = input.tx - input.cx;
+    dy = input.ty - input.cy;
+    const d = Math.hypot(dx, dy);
+    const max = 80;
+    if (d > 0) {
+      const mag = Math.min(d / max, 1);
+      dx = dx / d * mag;
+      dy = dy / d * mag;
+    } else {
+      dx = 0; dy = 0;
+    }
+  } else {
+    if (input.keys['w'] || input.keys['arrowup']) dy -= 1;
+    if (input.keys['s'] || input.keys['arrowdown']) dy += 1;
+    if (input.keys['a'] || input.keys['arrowleft']) dx -= 1;
+    if (input.keys['d'] || input.keys['arrowright']) dx += 1;
+    const d = Math.hypot(dx, dy);
+    if (d > 1) { dx /= d; dy /= d; }
+  }
+  input.dir.x = dx;
+  input.dir.y = dy;
+}
+
+// ============================================================================
+// Game logic
+// ============================================================================
+function reset() {
+  state.phase = 'playing';
+  state.player = new Planet(WORLD_W / 2, WORLD_H / 2, 0, true);
+  state.player.spawnT = 0; // no spawn animation on game start
+  state.npcs = [];
+  state.particles = [];
+  state.comets = [];
+  state.hp = HP_MAX;
+  state.score = 0;
+  state.xp = 0;
+  state.cam.x = state.player.x - W / 2;
+  state.cam.y = state.player.y - H / 2;
+  state.shake = 0;
+  state.flash = 0;
+  state.levelUpAnim = null;
+  state.supernovaT = 0;
+  state.maxLevel = 0;
+  state.timeline = [LEVELS[0].name];
+  state.cometTimer = 0;
+  state.cometInterval = COMET_MIN_INTERVAL + Math.random() * COMET_RAND_INTERVAL;
+  state.levelTimer = LEVEL_DURATION;
+  for (let i = 0; i < MAX_NPCS; i++) spawnNPC(true);
+  audio.init();
+  audio.resume();
+  audio.startBg();
+}
+
+function pickNpcLevel(playerLv) {
+  const roll = Math.random();
+  let lv;
+  if (playerLv === 0) {
+    // At dust: mostly same-level (eatable as bootstrap), some bigger
+    if (roll < 0.65) lv = 0;
+    else if (roll < 0.90) lv = 1;
+    else lv = 2;
+  } else if (playerLv >= 5) {
+    // At supergiant: cap upper bound; nothing bigger spawns
+    if (roll < 0.55) lv = 3 + Math.floor(Math.random() * 2);
+    else lv = 5;
+  } else {
+    if (roll < 0.55) lv = Math.max(0, playerLv - 1 - Math.floor(Math.random() * 2));
+    else if (roll < 0.80) lv = playerLv;
+    else lv = Math.min(5, playerLv + 1);
+  }
+  return lv;
+}
+
+function spawnNPC(anywhere = false) {
+  if (!state.player) return;
+  const lv = pickNpcLevel(state.player.level);
+  let x, y;
+  if (anywhere) {
+    let tries = 0;
+    do {
+      x = Math.random() * WORLD_W;
+      y = Math.random() * WORLD_H;
+      const d = Math.hypot(x - state.player.x, y - state.player.y);
+      if (d > 250) break;
+      tries++;
+    } while (tries < 8);
+  } else {
+    // Just outside camera
+    const edge = Math.floor(Math.random() * 4);
+    const margin = 80;
+    if (edge === 0) { x = state.cam.x - margin; y = state.cam.y + Math.random() * H; }
+    else if (edge === 1) { x = state.cam.x + W + margin; y = state.cam.y + Math.random() * H; }
+    else if (edge === 2) { x = state.cam.x + Math.random() * W; y = state.cam.y - margin; }
+    else { x = state.cam.x + Math.random() * W; y = state.cam.y + H + margin; }
+    x = Math.max(LEVELS[lv].r, Math.min(WORLD_W - LEVELS[lv].r, x));
+    y = Math.max(LEVELS[lv].r, Math.min(WORLD_H - LEVELS[lv].r, y));
+  }
+  const npc = new Planet(x, y, lv, false);
+  const a = Math.random() * Math.PI * 2;
+  const s = 12 + Math.random() * 22;
+  npc.vx = Math.cos(a) * s;
+  npc.vy = Math.sin(a) * s;
+  state.npcs.push(npc);
+}
+
+function spawnComet() {
+  const fromLeft = Math.random() < 0.5;
+  const x = fromLeft ? state.cam.x - 60 : state.cam.x + W + 60;
+  const y = state.cam.y + 60 + Math.random() * (H - 120);
+  const tx = fromLeft ? state.cam.x + W + 200 : state.cam.x - 200;
+  const ty = state.cam.y + 60 + Math.random() * (H - 120);
+  const dx = tx - x, dy = ty - y;
+  const d = Math.hypot(dx, dy);
+  const speed = 320;
+  state.comets.push({
+    x, y,
+    vx: dx / d * speed,
+    vy: dy / d * speed,
+    r: 7,
+    trail: [],
+    life: 6,
+    eaten: false
+  });
+}
+
+function gainXP(amount) {
+  state.xp += amount;
+  while (state.player.level < 5 && state.xp >= LEVELS[state.player.level].xp) {
+    state.xp -= LEVELS[state.player.level].xp;
+    levelUp();
+    if (state.supernovaT > 0) { state.xp = 0; break; }
+  }
+  if (state.player.level >= 5 && state.xp >= LEVELS[5].xp) {
+    state.xp = 0;
+    levelUp(); // triggers supernova
+  }
+}
+
+function levelUp() {
+  state.player.level++;
+  state.maxLevel = Math.max(state.maxLevel, state.player.level);
+  const newLv = state.player.level;
+  state.timeline.push(LEVELS[newLv].name);
+
+  // Reset level timer for the new stage (supernova/black hole don't need it)
+  if (newLv < 6) state.levelTimer = LEVEL_DURATION;
+
+  if (newLv === 6) {
+    // Supernova event: dangerous unplayable window, big flash + particles
+    state.supernovaT = 3.0;
+    state.flash = 1.0;
+    state.flashColor = '#ffffff';
+    state.shake = 0.8;
+    // Big particle burst
+    for (let i = 0; i < 140; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const sp = 80 + Math.random() * 420;
+      const colors = ['#ffffff', '#ffe080', '#ff8040', '#ff3010'];
+      const col = colors[Math.floor(Math.random() * colors.length)];
+      const p = new Particle(state.player.x, state.player.y,
+                              Math.cos(angle) * sp, Math.sin(angle) * sp,
+                              1.5 + Math.random() * 1.0, col, null);
+      p.size = 3 + Math.random() * 4;
+      state.particles.push(p);
+    }
+    audio.supernovaSound();
+    // Score bonus
+    state.score += 500;
+  } else if (newLv === 7) {
+    // Reached black hole — handled by supernova timer in update()
+  } else {
+    // Normal level up
+    state.levelUpAnim = { t: 1.6, name: LEVELS[newLv].name };
+    audio.levelUpSound();
+    state.flash = 0.25;
+    state.flashColor = LEVELS[newLv].g;
+    state.score += 100;
+    // Sparkle particles
+    for (let i = 0; i < 30; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const sp = 40 + Math.random() * 120;
+      state.particles.push(new Particle(state.player.x, state.player.y,
+                                         Math.cos(angle) * sp, Math.sin(angle) * sp,
+                                         0.8 + Math.random() * 0.5,
+                                         LEVELS[newLv].g, null));
+    }
+  }
+}
+
+function handleCollision(npc) {
+  if (npc.dying) return;
+  const dx = npc.x - state.player.x;
+  const dy = npc.y - state.player.y;
+  const d = Math.hypot(dx, dy);
+  const min = state.player.radius + npc.radius;
+  if (d >= min) return;
+
+  const playerLv = state.player.level;
+  const npcLv = npc.level;
+  // Eat rule: dust eats dust as bootstrap; otherwise strictly larger eats smaller
+  const eats = (playerLv === 0 && npcLv === 0) || (playerLv > npcLv);
+  const eaten = (npcLv === 0 && playerLv === 0) || (npcLv > playerLv);
+
+  if (eats) {
+    // Player eats NPC
+    state.score += (npcLv + 1) * 10;
+    gainXP((npcLv + 1) * 8 + 4);
+    npc.dying = true;
+    for (let i = 0; i < 10; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = 30 + Math.random() * 80;
+      state.particles.push(new Particle(npc.x, npc.y,
+                                         Math.cos(a) * sp, Math.sin(a) * sp,
+                                         0.7, LEVELS[npcLv].i, state.player));
+    }
+    audio.eatSound();
+  } else if (eaten && state.player.invul <= 0) {
+    // Player hit by bigger NPC
+    state.hp -= 1;
+    state.player.invul = 1.0;
+    state.shake = 0.5;
+    state.flash = 0.4;
+    state.flashColor = '#ff2030';
+    // Push player away
+    if (d > 0) {
+      const nx = dx / d, ny = dy / d;
+      state.player.vx -= nx * 320;
+      state.player.vy -= ny * 320;
+      npc.vx += nx * 60;
+      npc.vy += ny * 60;
+    }
+    audio.hitSound();
+    if (state.hp <= 0) {
+      state.phase = 'gameover';
+      audio.gameOverSound();
+      showGameOver();
+    }
+  } else if (!eats && !eaten) {
+    // same level (level >= 1): bounce
+    if (d > 0) {
+      const nx = dx / d, ny = dy / d;
+      state.player.vx -= nx * 80;
+      state.player.vy -= ny * 80;
+      npc.vx += nx * 80;
+      npc.vy += ny * 80;
+    }
+  }
+}
+
+function handleComet(c, dt) {
+  c.life -= dt;
+  c.x += c.vx * dt;
+  c.y += c.vy * dt;
+  c.trail.unshift({ x: c.x, y: c.y });
+  if (c.trail.length > 16) c.trail.pop();
+
+  if (!c.eaten) {
+    const dx = c.x - state.player.x, dy = c.y - state.player.y;
+    const d = Math.hypot(dx, dy);
+    if (d < state.player.radius + c.r) {
+      c.eaten = true;
+      c.life = 0;
+      state.score += 60;
+      gainXP(35);
+      if (Math.random() < 0.3 && state.hp < HP_MAX) {
+        state.hp += 1;
+        audio.healSound();
+      } else {
+        audio.cometSound();
+      }
+      for (let i = 0; i < 18; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const sp = 60 + Math.random() * 140;
+        state.particles.push(new Particle(c.x, c.y,
+                                           Math.cos(a) * sp, Math.sin(a) * sp,
+                                           0.6, '#ffe080', null));
+      }
+    }
+  }
+}
+
+// ============================================================================
+// Render
+// ============================================================================
+function render() {
+  // Background gradient
+  const bg = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H));
+  bg.addColorStop(0, '#0d0d2b');
+  bg.addColorStop(1, '#050510');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Compute shake offset
+  let shakeX = 0, shakeY = 0;
+  if (state.shake > 0) {
+    shakeX = (Math.random() - 0.5) * 18 * state.shake;
+    shakeY = (Math.random() - 0.5) * 18 * state.shake;
+  }
+  const camX = state.cam.x + shakeX;
+  const camY = state.cam.y + shakeY;
+  const now = performance.now() * 0.001;
+
+  // Parallax stars (tiled in screen space, scrolled by camera * z)
+  for (const s of STARS) {
+    const tileW = W, tileH = H;
+    let sx = (s.x * tileW - camX * s.z) % tileW;
+    let sy = (s.y * tileH - camY * s.z) % tileH;
+    if (sx < 0) sx += tileW;
+    if (sy < 0) sy += tileH;
+    let alpha = 0.35 + 0.5 * s.z;
+    if (s.twinkle) alpha *= 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(now * 2.5 + s.phase));
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(sx, sy, s.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // World boundary nebula (faint)
+  ctx.save();
+  ctx.translate(-camX, -camY);
+  ctx.strokeStyle = 'rgba(80,120,220,0.18)';
+  ctx.lineWidth = 6;
+  ctx.setLineDash([12, 8]);
+  ctx.strokeRect(0, 0, WORLD_W, WORLD_H);
+  ctx.setLineDash([]);
+  ctx.restore();
+
+  if (state.phase !== 'start') {
+    // Comets
+    for (const c of state.comets) renderComet(c, camX, camY);
+    // Particles
+    for (const p of state.particles) p.render(ctx, camX, camY);
+    // NPCs
+    for (const npc of state.npcs) npc.render(ctx, camX, camY);
+    // Player
+    if (state.player) state.player.render(ctx, camX, camY);
+  }
+
+  // Full-screen flash
+  if (state.flash > 0) {
+    ctx.fillStyle = state.flashColor;
+    ctx.globalAlpha = Math.min(1, state.flash);
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
+
+  // Supernova overlay text
+  if (state.supernovaT > 0) {
+    ctx.fillStyle = 'rgba(0,0,10,0.45)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.textAlign = 'center';
+    ctx.shadowBlur = 30;
+    ctx.shadowColor = '#ff8040';
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold ' + Math.floor(Math.min(W, H) * 0.08) + 'px sans-serif';
+    ctx.fillText('超 新 星 爆 发', W / 2, H * 0.45);
+    ctx.shadowBlur = 0;
+    ctx.font = 'bold ' + Math.floor(Math.min(W, H) * 0.035) + 'px sans-serif';
+    ctx.fillStyle = '#ffd0a0';
+    ctx.fillText('核心区的氢元素逐渐耗尽…', W / 2, H * 0.55);
+    ctx.fillStyle = '#a0c0ff';
+    ctx.fillText('即将坍缩为黑洞', W / 2, H * 0.60);
+    ctx.textAlign = 'left';
+  }
+
+  // Level up animation
+  if (state.levelUpAnim) {
+    const t = state.levelUpAnim.t;
+    let alpha;
+    if (t > 1.3) alpha = (1.6 - t) / 0.3;
+    else if (t < 0.3) alpha = t / 0.3;
+    else alpha = 1;
+    ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+    ctx.textAlign = 'center';
+    ctx.shadowBlur = 30;
+    ctx.shadowColor = '#ff8040';
+    ctx.fillStyle = '#ffe040';
+    ctx.font = 'bold ' + Math.floor(Math.min(W, H) * 0.08) + 'px sans-serif';
+    ctx.fillText('升 级', W / 2, H * 0.38);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold ' + Math.floor(Math.min(W, H) * 0.05) + 'px sans-serif';
+    ctx.fillText('→ ' + state.levelUpAnim.name, W / 2, H * 0.46);
+    ctx.shadowBlur = 0;
+    ctx.textAlign = 'left';
+    ctx.globalAlpha = 1;
+  }
+
+  // HUD
+  if (state.phase === 'playing') drawHUD();
+}
+
+function renderComet(c, camX, camY) {
+  // Trail
+  for (let i = c.trail.length - 1; i > 0; i--) {
+    const t = c.trail[i];
+    const a = (1 - i / c.trail.length) * 0.8;
+    const r = c.r * (1 - i / c.trail.length);
+    ctx.globalAlpha = a;
+    ctx.fillStyle = '#ffe080';
+    ctx.beginPath();
+    ctx.arc(t.x - camX, t.y - camY, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  // Head
+  ctx.shadowBlur = 18;
+  ctx.shadowColor = '#ffffa0';
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(c.x - camX, c.y - camY, c.r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+}
+
+function drawHeart(cx, cy, s, filled) {
+  ctx.beginPath();
+  ctx.moveTo(cx, cy + s * 0.4);
+  ctx.bezierCurveTo(cx - s * 0.2, cy + s * 0.2, cx - s, cy + s * 0.0, cx - s, cy - s * 0.4);
+  ctx.bezierCurveTo(cx - s, cy - s, cx - s * 0.3, cy - s, cx, cy - s * 0.4);
+  ctx.bezierCurveTo(cx + s * 0.3, cy - s, cx + s, cy - s, cx + s, cy - s * 0.4);
+  ctx.bezierCurveTo(cx + s, cy + s * 0.0, cx + s * 0.2, cy + s * 0.2, cx, cy + s * 0.4);
+  ctx.closePath();
+  if (filled) {
+    ctx.fillStyle = '#ff4060';
+    ctx.shadowBlur = 6;
+    ctx.shadowColor = '#ff2040';
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  } else {
+    ctx.strokeStyle = '#604050';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+}
+
+function drawHUD() {
+  // Top bar
+  const barH = 56;
+  ctx.fillStyle = 'rgba(0,8,28,0.65)';
+  ctx.fillRect(0, 0, W, barH);
+  ctx.strokeStyle = 'rgba(80,160,255,0.6)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, barH); ctx.lineTo(W, barH);
+  ctx.stroke();
+
+  // HP hearts (top-left)
+  for (let i = 0; i < HP_MAX; i++) {
+    drawHeart(20 + i * 26, 28, 9, i < state.hp);
+  }
+
+  // Stage name (center)
+  ctx.fillStyle = '#80c0ff';
+  ctx.font = 'bold 16px sans-serif';
+  ctx.textAlign = 'center';
+  const lv = LEVELS[state.player.level];
+  ctx.fillText('Lv.' + (state.player.level + 1) + ' ' + lv.name, W / 2, 24);
+  // XP + countdown indicator
+  if (state.player.level < 6) {
+    const next = lv.xp;
+    const secs = Math.max(0, Math.ceil(state.levelTimer));
+    const timeStr = Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0');
+    ctx.font = '11px sans-serif';
+    ctx.fillStyle = secs <= 10 ? '#ff8060' : '#a0b8e0';
+    ctx.fillText('⏱ ' + timeStr + '  ·  ' + Math.floor(state.xp) + ' / ' + next + ' XP', W / 2, 42);
+  }
+
+  // Thin time-remaining bar at the very top of the screen
+  if (state.player.level < 6) {
+    const tpct = Math.max(0, state.levelTimer / LEVEL_DURATION);
+    ctx.fillStyle = 'rgba(0,8,28,0.7)';
+    ctx.fillRect(0, 0, W, 3);
+    ctx.fillStyle = tpct < 0.2 ? '#ff5040' : (tpct < 0.5 ? '#ffc040' : '#60d0ff');
+    ctx.fillRect(0, 0, W * tpct, 3);
+  }
+
+  // Score (top-right)
+  ctx.fillStyle = '#ffe040';
+  ctx.font = 'bold 18px sans-serif';
+  ctx.textAlign = 'right';
+  ctx.shadowBlur = 6;
+  ctx.shadowColor = 'rgba(255,200,40,0.5)';
+  ctx.fillText('★ ' + state.score, W - 60, 30);
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'left';
+
+  // XP progress bar bottom
+  if (state.player.level < 6) {
+    const bw = Math.min(280, W * 0.55);
+    const bh = 10;
+    const bx = (W - bw) / 2;
+    const by = H - 28;
+    ctx.fillStyle = 'rgba(0,8,28,0.6)';
+    ctx.fillRect(bx - 4, by - 4, bw + 8, bh + 8);
+    ctx.strokeStyle = 'rgba(80,160,255,0.6)';
+    ctx.strokeRect(bx - 4, by - 4, bw + 8, bh + 8);
+    const pct = Math.min(1, state.xp / lv.xp);
+    const grad = ctx.createLinearGradient(bx, by, bx + bw, by);
+    grad.addColorStop(0, '#4080ff');
+    grad.addColorStop(1, '#80e0ff');
+    ctx.fillStyle = grad;
+    ctx.fillRect(bx, by, bw * pct, bh);
+  }
+
+  // Virtual joystick
+  if (input.active) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(128,192,255,0.5)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(input.cx, input.cy, 60, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(128,192,255,0.25)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(input.cx, input.cy, 80, 0, Math.PI * 2);
+    ctx.stroke();
+    let dx = input.tx - input.cx, dy = input.ty - input.cy;
+    const d = Math.hypot(dx, dy);
+    if (d > 60) { dx = dx / d * 60; dy = dy / d * 60; }
+    ctx.fillStyle = 'rgba(128,192,255,0.85)';
+    ctx.shadowBlur = 12;
+    ctx.shadowColor = '#80c0ff';
+    ctx.beginPath();
+    ctx.arc(input.cx + dx, input.cy + dy, 26, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+}
+
+// ============================================================================
+// Update
+// ============================================================================
+function update(dt) {
+  computeInputDir();
+
+  if (state.supernovaT > 0) {
+    state.supernovaT -= dt;
+    // Lock player level visually as supernova
+    state.player.level = 6;
+    // Slow down particles already in flight (no new logic needed)
+    if (state.supernovaT <= 0) {
+      state.player.level = 7;
+      state.maxLevel = 7;
+      if (state.timeline[state.timeline.length - 1] !== LEVELS[7].name) {
+        state.timeline.push(LEVELS[7].name);
+      }
+      state.phase = 'victory';
+      audio.victorySound();
+      // Black hole spawn particle ring
+      for (let i = 0; i < 60; i++) {
+        const a = (i / 60) * Math.PI * 2;
+        const sp = 80;
+        state.particles.push(new Particle(state.player.x, state.player.y,
+                                           Math.cos(a) * sp, Math.sin(a) * sp,
+                                           1.4, '#c060ff', null));
+      }
+      showVictory();
+      return;
+    }
+  } else if (state.phase === 'playing') {
+    // Level timer countdown — force advance when expired
+    if (state.player.level < 6) {
+      state.levelTimer -= dt;
+      if (state.levelTimer <= 0) {
+        state.xp = 0;
+        levelUp(); // handles supernova at level 5 → 6
+      }
+    }
+    // Player movement
+    const accel = 1400;
+    state.player.vx += input.dir.x * accel * dt;
+    state.player.vy += input.dir.y * accel * dt;
+    const maxV = 320 + state.player.level * 20;
+    const v = Math.hypot(state.player.vx, state.player.vy);
+    if (v > maxV) {
+      state.player.vx = state.player.vx / v * maxV;
+      state.player.vy = state.player.vy / v * maxV;
+    }
+    state.player.update(dt);
+
+    // World bounds for player
+    const pr = state.player.radius;
+    if (state.player.x < pr) { state.player.x = pr; state.player.vx = Math.abs(state.player.vx) * 0.4; }
+    if (state.player.x > WORLD_W - pr) { state.player.x = WORLD_W - pr; state.player.vx = -Math.abs(state.player.vx) * 0.4; }
+    if (state.player.y < pr) { state.player.y = pr; state.player.vy = Math.abs(state.player.vy) * 0.4; }
+    if (state.player.y > WORLD_H - pr) { state.player.y = WORLD_H - pr; state.player.vy = -Math.abs(state.player.vy) * 0.4; }
+
+    // NPCs
+    for (const npc of state.npcs) {
+      npc.update(dt);
+      const r = npc.radius;
+      if (npc.x < r) { npc.x = r; npc.vx = Math.abs(npc.vx); }
+      if (npc.x > WORLD_W - r) { npc.x = WORLD_W - r; npc.vx = -Math.abs(npc.vx); }
+      if (npc.y < r) { npc.y = r; npc.vy = Math.abs(npc.vy); }
+      if (npc.y > WORLD_H - r) { npc.y = WORLD_H - r; npc.vy = -Math.abs(npc.vy); }
+      // gentle wandering — apply small steering impulse, not full velocity override
+      if (Math.random() < 0.015) {
+        const a = Math.random() * Math.PI * 2;
+        const impulse = 8 + Math.random() * 14;
+        npc.vx += Math.cos(a) * impulse;
+        npc.vy += Math.sin(a) * impulse;
+      }
+      // Ensure minimum drift so NPCs never go fully static
+      const v = Math.hypot(npc.vx, npc.vy);
+      if (v < 6) {
+        const a = Math.random() * Math.PI * 2;
+        const s = 14 + Math.random() * 16;
+        npc.vx = Math.cos(a) * s;
+        npc.vy = Math.sin(a) * s;
+      }
+    }
+
+    // Collisions
+    for (const npc of state.npcs) {
+      if (state.phase !== 'playing') break;
+      handleCollision(npc);
+    }
+    state.npcs = state.npcs.filter(n => !n.dying);
+    while (state.npcs.length < MAX_NPCS) spawnNPC(false);
+
+    // Comets
+    state.cometTimer += dt;
+    if (state.cometTimer > state.cometInterval) {
+      state.cometTimer = 0;
+      state.cometInterval = COMET_MIN_INTERVAL + Math.random() * COMET_RAND_INTERVAL;
+      spawnComet();
+    }
+    for (const c of state.comets) handleComet(c, dt);
+    state.comets = state.comets.filter(c => c.life > 0);
+  }
+
+  // Particles update regardless of phase
+  for (const p of state.particles) p.update(dt);
+  state.particles = state.particles.filter(p => p.life > 0);
+  if (state.particles.length > MAX_PARTICLES) {
+    state.particles.splice(0, state.particles.length - MAX_PARTICLES);
+  }
+
+  // Camera follow player smoothly
+  if (state.player) {
+    const targetX = state.player.x - W / 2;
+    const targetY = state.player.y - H / 2;
+    const lerp = 1 - Math.pow(0.001, dt);
+    state.cam.x += (targetX - state.cam.x) * lerp;
+    state.cam.y += (targetY - state.cam.y) * lerp;
+  }
+
+  // Decay effects
+  if (state.shake > 0) state.shake = Math.max(0, state.shake - dt * 1.8);
+  if (state.flash > 0) state.flash = Math.max(0, state.flash - dt * 1.6);
+  if (state.levelUpAnim) {
+    state.levelUpAnim.t -= dt;
+    if (state.levelUpAnim.t <= 0) state.levelUpAnim = null;
+  }
+}
+
+// ============================================================================
+// UI overlays
+// ============================================================================
+function showGameOver() {
+  document.getElementById('goStage').textContent = '最高阶段：' + LEVELS[state.maxLevel].name;
+  document.getElementById('goScore').textContent = '得分：' + state.score;
+  document.getElementById('gameover').classList.add('visible');
+}
+function showVictory() {
+  document.getElementById('vScore').textContent = '总分：' + state.score;
+
+  // Vertical timeline: stage → ↓ + reason → next stage, repeated.
+  let html = '<div class="flow-title">恒 星 的 一 生</div><div class="flow">';
+  state.timeline.forEach((name, i) => {
+    if (i > 0) {
+      const fromIdx = LEVELS.findIndex(l => l.name === state.timeline[i - 1]);
+      const reason = fromIdx >= 0 ? (CAUSAL[fromIdx] || '') : '';
+      html += '<div class="flow-step">'
+        + '<span class="flow-arrow">▼</span>'
+        + (reason ? '<span class="flow-reason">' + reason + '</span>' : '')
+        + '</div>';
+    }
+    html += '<span class="flow-item">' + name + '</span>';
+  });
+  html += '</div>';
+
+  document.getElementById('vTimeline').innerHTML = html;
+  document.getElementById('victory').classList.add('visible');
+}
+
+document.getElementById('startBtn').addEventListener('click', () => {
+  document.getElementById('start').classList.remove('visible');
+  reset();
+});
+document.getElementById('restartBtn').addEventListener('click', () => {
+  document.getElementById('gameover').classList.remove('visible');
+  reset();
+});
+document.getElementById('restartVBtn').addEventListener('click', () => {
+  document.getElementById('victory').classList.remove('visible');
+  reset();
+});
+document.getElementById('mute').addEventListener('click', (e) => {
+  audio.init();
+  const muted = audio.toggleMute();
+  e.target.textContent = muted ? '🔇' : '🔊';
+});
+
+// Initial placeholder player for idle background render
+state.player = new Planet(WORLD_W / 2, WORLD_H / 2, 0, true);
+state.cam.x = state.player.x - W / 2;
+state.cam.y = state.player.y - H / 2;
+// Some ambient NPCs for the title screen background
+for (let i = 0; i < 8; i++) {
+  const lv = Math.floor(Math.random() * 5);
+  const x = Math.random() * WORLD_W;
+  const y = Math.random() * WORLD_H;
+  const npc = new Planet(x, y, lv, false);
+  const a = Math.random() * Math.PI * 2;
+  const s = 10 + Math.random() * 20;
+  npc.vx = Math.cos(a) * s; npc.vy = Math.sin(a) * s;
+  state.npcs.push(npc);
+}
+
+// ============================================================================
+// Main loop
+// ============================================================================
+let lastT = performance.now();
+function loop(t) {
+  const dt = Math.min((t - lastT) / 1000, 0.05);
+  lastT = t;
+  update(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
