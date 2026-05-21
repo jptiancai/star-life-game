@@ -259,7 +259,7 @@ const CAUSAL = [
   '爆发后残余核心极端压缩形成中子星',
   '中子星质量超过极限，坍缩为黑洞'
 ];
-const BLACKHOLE_DURATION = 8; // seconds of black hole absorb mode before victory
+const BLACKHOLE_DURATION = 30; // seconds of black hole absorb mode before victory
 const LEVEL_DURATION = 100; // seconds per stage
 const WORLD_W = 2400;
 const WORLD_H = 2400;
@@ -1526,10 +1526,26 @@ function update(dt) {
   } else if (state.blackholeT > 0) {
     // === Black hole absorb mode ===
     state.blackholeT -= dt;
+    // Player can still move during black hole mode
+    const accel = 2200;
+    state.player.vx += input.dir.x * accel * dt;
+    state.player.vy += input.dir.y * accel * dt;
+    const maxV = 280;
+    const pv = Math.hypot(state.player.vx, state.player.vy);
+    if (pv > maxV) {
+      state.player.vx = state.player.vx / pv * maxV;
+      state.player.vy = state.player.vy / pv * maxV;
+    }
     state.player.update(dt);
-    // Apply gravitational pull on ALL NPCs toward player
-    const pullRadius = 500;
-    const pullStrength = 350;
+    // World bounds
+    const pr = state.player.radius;
+    if (state.player.x < pr) { state.player.x = pr; state.player.vx = Math.abs(state.player.vx) * 0.4; }
+    if (state.player.x > WORLD_W - pr) { state.player.x = WORLD_W - pr; state.player.vx = -Math.abs(state.player.vx) * 0.4; }
+    if (state.player.y < pr) { state.player.y = pr; state.player.vy = Math.abs(state.player.vy) * 0.4; }
+    if (state.player.y > WORLD_H - pr) { state.player.y = WORLD_H - pr; state.player.vy = -Math.abs(state.player.vy) * 0.4; }
+    // Apply strong gravitational pull on ALL NPCs toward player
+    const pullRadius = 700;
+    const pullStrength = 600;
     for (const npc of state.npcs) {
       const dx = state.player.x - npc.x;
       const dy = state.player.y - npc.y;
