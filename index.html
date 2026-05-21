@@ -243,6 +243,7 @@ const LEVELS = [
   { name: '红巨星',   r: 54, i: '#ffb060', o: '#902000', g: '#ff7030', xp: 300 },
   { name: '超巨星',   r: 70, i: '#d0e8ff', o: '#2050b0', g: '#80b0ff', xp: 400 },
   { name: '超新星',   r: 100, i: '#ffffff', o: '#ffd040', g: '#ffffff', xp: 1 },
+  { name: '中子星',   r: 28, i: '#c0e8ff', o: '#1030a0', g: '#60a0ff', xp: 350 },
   { name: '黑洞',     r: 55, i: '#000000', o: '#200030', g: '#a040ff', xp: Infinity }
 ];
 // Cause-and-effect text shown on victory screen between consecutive levels.
@@ -255,8 +256,10 @@ const CAUSAL = [
   '核心氢耗尽，外壳膨胀冷却',
   '外层进一步膨胀，演化为蓝白超巨星',
   '核心铁聚变停止，引力坍缩触发超新星爆发',
-  '核心残骸坍缩成无限致密的黑洞'
+  '爆发后残余核心极端压缩形成中子星',
+  '中子星质量超过极限，坍缩为黑洞'
 ];
+const BLACKHOLE_DURATION = 8; // seconds of black hole absorb mode before victory
 const LEVEL_DURATION = 100; // seconds per stage
 const WORLD_W = 2400;
 const WORLD_H = 2400;
@@ -621,7 +624,7 @@ class Planet {
     const lv = LEVELS[this.level];
 
     // Black hole: special render
-    if (this.level === 7) {
+    if (this.level === 8) {
       // accretion disk rings
       for (let i = 0; i < 3; i++) {
         ctx.strokeStyle = `rgba(180,90,255,${0.55 - i * 0.15})`;
@@ -829,7 +832,8 @@ const state = {
   timeline: [],
   cometTimer: 0,
   cometInterval: COMET_MIN_INTERVAL + Math.random() * COMET_RAND_INTERVAL,
-  levelTimer: LEVEL_DURATION
+  levelTimer: LEVEL_DURATION,
+  blackholeT: 0
 };
 
 // ============================================================================
@@ -959,6 +963,7 @@ function reset() {
   state.cometTimer = 0;
   state.cometInterval = COMET_MIN_INTERVAL + Math.random() * COMET_RAND_INTERVAL;
   state.levelTimer = LEVEL_DURATION;
+  state.blackholeT = 0;
   state.floatingTexts = [];
   for (let i = 0; i < diff.maxNpcs; i++) spawnNPC(true);
   audio.init();
@@ -1041,14 +1046,22 @@ function spawnComet() {
 
 function gainXP(amount) {
   state.xp += amount;
+  // Levels 0-5 (dust→supergiant) use normal XP threshold
   while (state.player.level < 5 && state.xp >= LEVELS[state.player.level].xp) {
     state.xp -= LEVELS[state.player.level].xp;
     levelUp();
-    if (state.supernovaT > 0) { state.xp = 0; break; }
+    if (state.supernovaT > 0) { state.xp = 0; return; }
   }
-  if (state.player.level >= 5 && state.xp >= LEVELS[5].xp) {
+  // Level 5 (supergiant) → triggers supernova
+  if (state.player.level === 5 && state.xp >= LEVELS[5].xp) {
     state.xp = 0;
-    levelUp(); // triggers supernova
+    levelUp();
+    return;
+  }
+  // Level 7 (neutron star) → XP threshold to become black hole
+  if (state.player.level === 7 && state.xp >= LEVELS[7].xp) {
+    state.xp = 0;
+    levelUp(); // becomes black hole (level 8)
   }
 }
 
@@ -1059,7 +1072,7 @@ function levelUp() {
   state.timeline.push(LEVELS[newLv].name);
 
   // Reset level timer for the new stage (supernova/black hole don't need it)
-  if (newLv < 6) state.levelTimer = LEVEL_DURATION;
+  if (newLv < 6 || newLv === 7) state.levelTimer = LEVEL_DURATION;
 
   if (newLv === 6) {
     // Supernova event: dangerous unplayable window, big flash + particles
@@ -1080,10 +1093,17 @@ function levelUp() {
       state.particles.push(p);
     }
     audio.supernovaSound();
-    // Score bonus
     state.score += 500;
   } else if (newLv === 7) {
-    // Reached black hole — handled by supernova timer in update()
+    // Became neutron star after supernova — handled by supernova timer
+  } else if (newLv === 8) {
+    // Reached black hole — enter black hole absorb mode
+    state.blackholeT = BLACKHOLE_DURATION;
+    state.levelUpAnim = { t: 2.0, name: '黑洞' };
+    audio.levelUpSound();
+    state.flash = 0.5;
+    state.flashColor = '#a040ff';
+    state.score += 300;
   } else {
     // Normal level up
     state.levelUpAnim = { t: 1.6, name: LEVELS[newLv].name };
@@ -1296,7 +1316,23 @@ function render() {
     ctx.fillStyle = '#ffd0a0';
     ctx.fillText('核心区的氢元素逐渐耗尽…', W / 2, H * 0.55);
     ctx.fillStyle = '#a0c0ff';
-    ctx.fillText('即将坍缩为黑洞', W / 2, H * 0.60);
+    ctx.fillText('即将坍缩为中子星', W / 2, H * 0.60);
+    ctx.textAlign = 'left';
+  }
+
+  // Black hole mode overlay
+  if (state.blackholeT > 0) {
+    ctx.textAlign = 'center';
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = '#a040ff';
+    ctx.fillStyle = '#e0c0ff';
+    ctx.font = 'bold ' + Math.floor(Math.min(W, H) * 0.06) + 'px sans-serif';
+    ctx.fillText('黑 洞 模 式', W / 2, H * 0.12);
+    ctx.shadowBlur = 0;
+    ctx.font = '' + Math.floor(Math.min(W, H) * 0.03) + 'px sans-serif';
+    ctx.fillStyle = '#c0a0e0';
+    const secs = Math.ceil(state.blackholeT);
+    ctx.fillText('吞噬一切… ' + secs + 's', W / 2, H * 0.17);
     ctx.textAlign = 'left';
   }
 
@@ -1392,8 +1428,8 @@ function drawHUD() {
   ctx.textAlign = 'center';
   const lv = LEVELS[state.player.level];
   ctx.fillText('Lv.' + (state.player.level + 1) + ' ' + lv.name, W / 2, 24);
-  // XP + countdown indicator
-  if (state.player.level < 6) {
+  // XP + countdown indicator (shown for levels that have timers: 0-5 and 7)
+  if (state.player.level < 6 || state.player.level === 7) {
     const next = lv.xp;
     const secs = Math.max(0, Math.ceil(state.levelTimer));
     const timeStr = Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0');
@@ -1403,7 +1439,7 @@ function drawHUD() {
   }
 
   // Thin time-remaining bar at the very top of the screen
-  if (state.player.level < 6) {
+  if (state.player.level < 6 || state.player.level === 7) {
     const tpct = Math.max(0, state.levelTimer / LEVEL_DURATION);
     ctx.fillStyle = 'rgba(0,8,28,0.7)';
     ctx.fillRect(0, 0, W, 3);
@@ -1422,7 +1458,7 @@ function drawHUD() {
   ctx.textAlign = 'left';
 
   // XP progress bar bottom
-  if (state.player.level < 6) {
+  if (state.player.level < 6 || state.player.level === 7) {
     const bw = Math.min(280, W * 0.55);
     const bh = 10;
     const bx = (W - bw) / 2;
@@ -1476,16 +1512,72 @@ function update(dt) {
     state.supernovaT -= dt;
     // Lock player level visually as supernova
     state.player.level = 6;
-    // Slow down particles already in flight (no new logic needed)
     if (state.supernovaT <= 0) {
+      // Supernova ends → become neutron star (level 7)
       state.player.level = 7;
       state.maxLevel = 7;
       if (state.timeline[state.timeline.length - 1] !== LEVELS[7].name) {
         state.timeline.push(LEVELS[7].name);
       }
+      state.levelUpAnim = { t: 1.6, name: LEVELS[7].name };
+      state.levelTimer = LEVEL_DURATION;
+      audio.levelUpSound();
+    }
+  } else if (state.blackholeT > 0) {
+    // === Black hole absorb mode ===
+    state.blackholeT -= dt;
+    state.player.update(dt);
+    // Apply gravitational pull on ALL NPCs toward player
+    const pullRadius = 500;
+    const pullStrength = 350;
+    for (const npc of state.npcs) {
+      const dx = state.player.x - npc.x;
+      const dy = state.player.y - npc.y;
+      const d = Math.hypot(dx, dy);
+      if (d < pullRadius && d > 1) {
+        const force = pullStrength * (1 - d / pullRadius);
+        npc.vx += (dx / d) * force * dt;
+        npc.vy += (dy / d) * force * dt;
+      }
+      npc.update(dt);
+      // Check if NPC reached black hole (swallowed)
+      if (d < state.player.radius + npc.radius * 0.5) {
+        npc.dying = true;
+        state.score += 20;
+        state.floatingTexts.push(new FloatingText(npc.x, npc.y - 10, '+20', '#c080ff'));
+        // Spiral-in particles
+        for (let i = 0; i < 6; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const sp = 20 + Math.random() * 40;
+          state.particles.push(new Particle(npc.x, npc.y,
+            Math.cos(a) * sp, Math.sin(a) * sp,
+            0.5, LEVELS[npc.level].g, state.player));
+        }
+        audio.eatSound();
+      }
+    }
+    state.npcs = state.npcs.filter(n => !n.dying);
+    // Continuously spawn fresh NPCs to be sucked in
+    while (state.npcs.length < diff.maxNpcs) spawnNPC(false);
+    // Accretion disk particle ring effect (continuous)
+    if (Math.random() < 0.25) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = state.player.radius * 1.8 + Math.random() * 30;
+      const px = state.player.x + Math.cos(angle) * dist;
+      const py = state.player.y + Math.sin(angle) * dist;
+      const tangent = angle + Math.PI / 2;
+      state.particles.push(new Particle(px, py,
+        Math.cos(tangent) * 60, Math.sin(tangent) * 60,
+        0.8, '#c080ff', state.player));
+    }
+    // When time expires → victory
+    if (state.blackholeT <= 0) {
       state.phase = 'victory';
+      state.maxLevel = 8;
+      if (state.timeline[state.timeline.length - 1] !== LEVELS[8].name) {
+        state.timeline.push(LEVELS[8].name);
+      }
       audio.victorySound();
-      // Black hole spawn particle ring
       for (let i = 0; i < 60; i++) {
         const a = (i / 60) * Math.PI * 2;
         const sp = 80;
@@ -1498,7 +1590,7 @@ function update(dt) {
     }
   } else if (state.phase === 'playing') {
     // Level timer countdown — force advance when expired
-    if (state.player.level < 6) {
+    if (state.player.level < 6 || state.player.level === 7) {
       state.levelTimer -= dt;
       if (state.levelTimer <= 0) {
         state.xp = 0;
