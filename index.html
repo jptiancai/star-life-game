@@ -623,23 +623,61 @@ class Planet {
     if (this.invul > 0 && Math.floor(this.invul * 12) % 2 === 0) return;
     const lv = LEVELS[this.level];
 
+    // Spaghettification: stretch NPC toward black hole when being pulled in
+    const stretch = this._bhStretch || 1;
+    if (!this.isPlayer && stretch > 1.05 && state.player) {
+      const angle = Math.atan2(state.player.y - this.y, state.player.x - this.x);
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate(angle);
+      ctx.scale(stretch, 1 / Math.sqrt(stretch));
+      ctx.translate(-sx, -sy);
+    }
+
     // Black hole: special render
     if (this.level === 8) {
-      // accretion disk rings
-      for (let i = 0; i < 3; i++) {
-        ctx.strokeStyle = `rgba(180,90,255,${0.55 - i * 0.15})`;
-        ctx.lineWidth = 4 - i;
+      // Outer gravitational distortion halo
+      ctx.save();
+      ctx.shadowBlur = r * 2.5;
+      ctx.shadowColor = '#6020c0';
+      ctx.strokeStyle = 'rgba(120,60,200,0.12)';
+      ctx.lineWidth = r * 0.8;
+      ctx.beginPath();
+      ctx.arc(sx, sy, r * 2.2, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+      // Multi-layer accretion disk
+      for (let i = 0; i < 5; i++) {
+        const alpha = 0.6 - i * 0.1;
+        const hue = 270 + i * 15; // purple → pink
+        ctx.strokeStyle = `hsla(${hue},80%,60%,${alpha})`;
+        ctx.lineWidth = 3.5 - i * 0.5;
         ctx.beginPath();
-        ctx.ellipse(sx, sy, r * (1.6 + i * 0.3), r * (0.5 + i * 0.1), this.pulse * 0.5 + i, 0, Math.PI * 2);
+        ctx.ellipse(sx, sy, r * (1.4 + i * 0.35), r * (0.4 + i * 0.08),
+                    this.pulse * 0.6 + i * 0.7, 0, Math.PI * 2);
         ctx.stroke();
       }
-      // dark body
+      // Hot inner ring (orange-white)
+      ctx.strokeStyle = 'rgba(255,180,80,0.5)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(sx, sy, r * 1.1, r * 0.35, this.pulse * 0.8, 0, Math.PI * 2);
+      ctx.stroke();
+      // Dark body with deep glow
+      ctx.shadowBlur = r * 1.2;
+      ctx.shadowColor = '#4010a0';
       const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
-      grad.addColorStop(0, '#000');
-      grad.addColorStop(0.8, '#100018');
-      grad.addColorStop(1, '#30005a');
+      grad.addColorStop(0, '#000000');
+      grad.addColorStop(0.6, '#080010');
+      grad.addColorStop(0.85, '#200040');
+      grad.addColorStop(1, '#400080');
       ctx.fillStyle = grad;
       ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      // Event horizon highlight
+      ctx.strokeStyle = 'rgba(200,120,255,0.4)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(sx, sy, r * 0.85, 0, Math.PI * 2); ctx.stroke();
       return;
     }
 
@@ -725,6 +763,11 @@ class Planet {
       ctx.beginPath();
       ctx.arc(sx, sy, r + 6, 0, Math.PI * 2);
       ctx.stroke();
+    }
+
+    // End spaghettification transform
+    if (!this.isPlayer && stretch > 1.05 && state.player) {
+      ctx.restore();
     }
   }
 }
@@ -1551,23 +1594,47 @@ function update(dt) {
       const dy = state.player.y - npc.y;
       const d = Math.hypot(dx, dy);
       if (d < pullRadius && d > 1) {
-        const force = pullStrength * (1 - d / pullRadius);
-        npc.vx += (dx / d) * force * dt;
-        npc.vy += (dy / d) * force * dt;
+        // Inverse-square feel: much stronger when close
+        const ratio = 1 - d / pullRadius;
+        const force = pullStrength * ratio * ratio * 2.5;
+        // Add slight tangential (spiral) component
+        const nx = dx / d, ny = dy / d;
+        const tx = -ny * 0.35, ty = nx * 0.35;
+        npc.vx += (nx + tx) * force * dt;
+        npc.vy += (ny + ty) * force * dt;
+        // Emit spiral stream particles from NPCs being pulled (closer = more)
+        if (ratio > 0.3 && Math.random() < ratio * 0.4) {
+          const pAngle = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.5;
+          const pSpeed = 40 + ratio * 120;
+          const colors = ['#ff8040', '#ffc060', '#c080ff', '#80c0ff'];
+          const col = colors[Math.floor(Math.random() * colors.length)];
+          const p = new Particle(npc.x, npc.y,
+            Math.cos(pAngle) * pSpeed, Math.sin(pAngle) * pSpeed,
+            0.4 + ratio * 0.4, col, state.player);
+          p.size = 1.5 + ratio * 2.5;
+          state.particles.push(p);
+        }
       }
       npc.update(dt);
+      // NPC stretches visually as it gets close (stored for render)
+      npc._bhStretch = d < pullRadius ? Math.max(1, 1 + (1 - d / pullRadius) * 1.2) : 1;
       // Check if NPC reached black hole (swallowed)
       if (d < state.player.radius + npc.radius * 0.5) {
         npc.dying = true;
         state.score += 20;
         state.floatingTexts.push(new FloatingText(npc.x, npc.y - 10, '+20', '#c080ff'));
-        // Spiral-in particles
-        for (let i = 0; i < 6; i++) {
+        // Big implosion burst when swallowed
+        const burstCount = 12 + Math.floor(Math.random() * 8);
+        for (let i = 0; i < burstCount; i++) {
           const a = Math.random() * Math.PI * 2;
-          const sp = 20 + Math.random() * 40;
-          state.particles.push(new Particle(npc.x, npc.y,
+          const sp = 15 + Math.random() * 60;
+          const colors = ['#ffffff', '#ffc0ff', '#c080ff', '#6040ff', LEVELS[npc.level].g];
+          const col = colors[Math.floor(Math.random() * colors.length)];
+          const p = new Particle(npc.x, npc.y,
             Math.cos(a) * sp, Math.sin(a) * sp,
-            0.5, LEVELS[npc.level].g, state.player));
+            0.3 + Math.random() * 0.5, col, state.player);
+          p.size = 2 + Math.random() * 3;
+          state.particles.push(p);
         }
         audio.eatSound();
       }
@@ -1575,16 +1642,35 @@ function update(dt) {
     state.npcs = state.npcs.filter(n => !n.dying);
     // Continuously spawn fresh NPCs to be sucked in
     while (state.npcs.length < diff.maxNpcs) spawnNPC(false);
-    // Accretion disk particle ring effect (continuous)
-    if (Math.random() < 0.25) {
+    // Dense accretion disk: multiple orbiting particle streams
+    const diskRate = 0.7;
+    if (Math.random() < diskRate) {
       const angle = Math.random() * Math.PI * 2;
-      const dist = state.player.radius * 1.8 + Math.random() * 30;
+      const dist = state.player.radius * (1.4 + Math.random() * 1.2);
       const px = state.player.x + Math.cos(angle) * dist;
       const py = state.player.y + Math.sin(angle) * dist;
       const tangent = angle + Math.PI / 2;
-      state.particles.push(new Particle(px, py,
-        Math.cos(tangent) * 60, Math.sin(tangent) * 60,
-        0.8, '#c080ff', state.player));
+      const speed = 50 + Math.random() * 80;
+      const colors = ['#ff6020', '#ffa040', '#c060ff', '#8040ff'];
+      const col = colors[Math.floor(Math.random() * colors.length)];
+      const p = new Particle(px, py,
+        Math.cos(tangent) * speed, Math.sin(tangent) * speed,
+        0.6 + Math.random() * 0.5, col, state.player);
+      p.size = 1.5 + Math.random() * 2;
+      state.particles.push(p);
+    }
+    // Outer gravitational lens ring particles (faint, wider orbit)
+    if (Math.random() < 0.15) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = state.player.radius * 3 + Math.random() * 60;
+      const px = state.player.x + Math.cos(angle) * dist;
+      const py = state.player.y + Math.sin(angle) * dist;
+      const tangent = angle + Math.PI / 2;
+      const p = new Particle(px, py,
+        Math.cos(tangent) * 30, Math.sin(tangent) * 30,
+        1.2, 'rgba(160,120,255,0.6)', state.player);
+      p.size = 1;
+      state.particles.push(p);
     }
     // When time expires → victory
     if (state.blackholeT <= 0) {
