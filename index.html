@@ -242,6 +242,7 @@ const LEVELS = [
   { name: '主序星',   r: 36, i: '#ffffa0', o: '#ff8020', g: '#ffe040', xp: 200 },
   { name: '红巨星',   r: 54, i: '#ffb060', o: '#902000', g: '#ff7030', xp: 300 },
   { name: '超巨星',   r: 70, i: '#d0e8ff', o: '#2050b0', g: '#80b0ff', xp: 400 },
+  { name: '紫超巨星', r: 85, i: '#e0b0ff', o: '#6020a0', g: '#c060ff', xp: 500 },
   { name: '超新星',   r: 100, i: '#ffffff', o: '#ffd040', g: '#ffffff', xp: 1 },
   { name: '中子星',   r: 28, i: '#c0e8ff', o: '#1030a0', g: '#60a0ff', xp: 350 },
   { name: '黑洞',     r: 55, i: '#000000', o: '#200030', g: '#a040ff', xp: Infinity }
@@ -255,6 +256,7 @@ const CAUSAL = [
   '稳定燃烧氢元素，恒星进入主序阶段',
   '核心氢耗尽，外壳膨胀冷却',
   '外层进一步膨胀，演化为蓝白超巨星',
+  '超巨星继续膨胀，核心温度飙升，外层呈现紫色光辉',
   '核心铁聚变停止，引力坍缩触发超新星爆发',
   '爆发后残余核心极端压缩形成中子星',
   '中子星质量超过极限，坍缩为黑洞'
@@ -635,7 +637,7 @@ class Planet {
     }
 
     // Black hole: special render
-    if (this.level === 8) {
+    if (this.level === 9) {
       // Outer gravitational distortion halo
       ctx.save();
       ctx.shadowBlur = r * 2.5;
@@ -682,7 +684,7 @@ class Planet {
     }
 
     // Supernova: bright burst
-    if (this.level === 6) {
+    if (this.level === 7) {
       ctx.shadowBlur = r * 1.5;
       ctx.shadowColor = '#ffffff';
       const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, r * 1.5);
@@ -1023,13 +1025,13 @@ function pickNpcLevel(playerLv) {
     else if (roll < 0.90) lv = 1;
     else lv = 2;
   } else if (playerLv >= 5) {
-    // At supergiant: cap upper bound; nothing bigger spawns
-    if (roll < 0.55) lv = 3 + Math.floor(Math.random() * 2);
-    else lv = 5;
+    // At supergiant+: cap upper bound; nothing bigger spawns
+    if (roll < 0.55) lv = 3 + Math.floor(Math.random() * 3);
+    else lv = 6;
   } else {
     if (roll < 0.55) lv = Math.max(0, playerLv - 1 - Math.floor(Math.random() * 2));
     else if (roll < 0.80) lv = playerLv;
-    else lv = Math.min(5, playerLv + 1);
+    else lv = Math.min(6, playerLv + 1);
   }
   return lv;
 }
@@ -1089,22 +1091,22 @@ function spawnComet() {
 
 function gainXP(amount) {
   state.xp += amount;
-  // Levels 0-5 (dust→supergiant) use normal XP threshold
-  while (state.player.level < 5 && state.xp >= LEVELS[state.player.level].xp) {
+  // Levels 0-6 (dust→紫超巨星) use normal XP threshold
+  while (state.player.level < 6 && state.xp >= LEVELS[state.player.level].xp) {
     state.xp -= LEVELS[state.player.level].xp;
     levelUp();
     if (state.supernovaT > 0) { state.xp = 0; return; }
   }
-  // Level 5 (supergiant) → triggers supernova
-  if (state.player.level === 5 && state.xp >= LEVELS[5].xp) {
+  // Level 6 (紫超巨星) → triggers supernova
+  if (state.player.level === 6 && state.xp >= LEVELS[6].xp) {
     state.xp = 0;
     levelUp();
     return;
   }
-  // Level 7 (neutron star) → XP threshold to become black hole
-  if (state.player.level === 7 && state.xp >= LEVELS[7].xp) {
+  // Level 8 (neutron star) → XP threshold to become black hole
+  if (state.player.level === 8 && state.xp >= LEVELS[8].xp) {
     state.xp = 0;
-    levelUp(); // becomes black hole (level 8)
+    levelUp(); // becomes black hole (level 9)
   }
 }
 
@@ -1115,9 +1117,9 @@ function levelUp() {
   state.timeline.push(LEVELS[newLv].name);
 
   // Reset level timer for the new stage (supernova/black hole don't need it)
-  if (newLv < 6 || newLv === 7) state.levelTimer = LEVEL_DURATION;
+  if (newLv < 7 || newLv === 8) state.levelTimer = LEVEL_DURATION;
 
-  if (newLv === 6) {
+  if (newLv === 7) {
     // Supernova event: dangerous unplayable window, big flash + particles
     state.supernovaT = 3.0;
     state.flash = 1.0;
@@ -1137,9 +1139,9 @@ function levelUp() {
     }
     audio.supernovaSound();
     state.score += 500;
-  } else if (newLv === 7) {
-    // Became neutron star after supernova — handled by supernova timer
   } else if (newLv === 8) {
+    // Became neutron star after supernova — handled by supernova timer
+  } else if (newLv === 9) {
     // Reached black hole — enter black hole absorb mode
     state.blackholeT = BLACKHOLE_DURATION;
     state.levelUpAnim = { t: 2.0, name: '黑洞' };
@@ -1472,7 +1474,7 @@ function drawHUD() {
   const lv = LEVELS[state.player.level];
   ctx.fillText('Lv.' + (state.player.level + 1) + ' ' + lv.name, W / 2, 24);
   // XP + countdown indicator (shown for levels that have timers: 0-5 and 7)
-  if (state.player.level < 6 || state.player.level === 7) {
+  if (state.player.level < 7 || state.player.level === 8) {
     const next = lv.xp;
     const secs = Math.max(0, Math.ceil(state.levelTimer));
     const timeStr = Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0');
@@ -1482,7 +1484,7 @@ function drawHUD() {
   }
 
   // Thin time-remaining bar at the very top of the screen
-  if (state.player.level < 6 || state.player.level === 7) {
+  if (state.player.level < 7 || state.player.level === 8) {
     const tpct = Math.max(0, state.levelTimer / LEVEL_DURATION);
     ctx.fillStyle = 'rgba(0,8,28,0.7)';
     ctx.fillRect(0, 0, W, 3);
@@ -1501,7 +1503,7 @@ function drawHUD() {
   ctx.textAlign = 'left';
 
   // XP progress bar bottom
-  if (state.player.level < 6 || state.player.level === 7) {
+  if (state.player.level < 7 || state.player.level === 8) {
     const bw = Math.min(280, W * 0.55);
     const bh = 10;
     const bx = (W - bw) / 2;
@@ -1554,15 +1556,15 @@ function update(dt) {
   if (state.supernovaT > 0) {
     state.supernovaT -= dt;
     // Lock player level visually as supernova
-    state.player.level = 6;
+    state.player.level = 7;
     if (state.supernovaT <= 0) {
-      // Supernova ends → become neutron star (level 7)
-      state.player.level = 7;
-      state.maxLevel = 7;
-      if (state.timeline[state.timeline.length - 1] !== LEVELS[7].name) {
-        state.timeline.push(LEVELS[7].name);
+      // Supernova ends → become neutron star (level 8)
+      state.player.level = 8;
+      state.maxLevel = 8;
+      if (state.timeline[state.timeline.length - 1] !== LEVELS[8].name) {
+        state.timeline.push(LEVELS[8].name);
       }
-      state.levelUpAnim = { t: 1.6, name: LEVELS[7].name };
+      state.levelUpAnim = { t: 1.6, name: LEVELS[8].name };
       state.levelTimer = LEVEL_DURATION;
       audio.levelUpSound();
     }
@@ -1692,11 +1694,11 @@ function update(dt) {
     }
   } else if (state.phase === 'playing') {
     // Level timer countdown — force advance when expired
-    if (state.player.level < 6 || state.player.level === 7) {
+    if (state.player.level < 7 || state.player.level === 8) {
       state.levelTimer -= dt;
       if (state.levelTimer <= 0) {
         state.xp = 0;
-        levelUp(); // handles supernova at level 5 → 6
+        levelUp(); // handles supernova at level 6 → 7
       }
     }
     // Player movement
