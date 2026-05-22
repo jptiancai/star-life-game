@@ -587,7 +587,7 @@ class Planet {
     this.eyeDir = 0;
     this.spawnT = 0.4; // grow-in animation
   }
-  get radius() { return LEVELS[this.level].r; }
+  get radius() { return LEVELS[this.level].r + (this === state.player ? state.bhGrowth : 0); }
   effectiveR() {
     const spawnScale = Math.min(1, 1 - this.spawnT / 0.4);
     const pulseScale = 1 + Math.sin(this.pulse) * 0.05;
@@ -878,7 +878,8 @@ const state = {
   cometTimer: 0,
   cometInterval: COMET_MIN_INTERVAL + Math.random() * COMET_RAND_INTERVAL,
   levelTimer: LEVEL_DURATION,
-  blackholeT: 0
+  blackholeT: 0,
+  bhGrowth: 0
 };
 
 // ============================================================================
@@ -1009,6 +1010,7 @@ function reset() {
   state.cometInterval = COMET_MIN_INTERVAL + Math.random() * COMET_RAND_INTERVAL;
   state.levelTimer = LEVEL_DURATION;
   state.blackholeT = 0;
+  state.bhGrowth = 0;
   state.floatingTexts = [];
   for (let i = 0; i < diff.maxNpcs; i++) spawnNPC(true);
   audio.init();
@@ -1144,6 +1146,7 @@ function levelUp() {
   } else if (newLv === 9) {
     // Reached black hole — enter black hole absorb mode
     state.blackholeT = BLACKHOLE_DURATION;
+    state.bhGrowth = 0;
     state.levelUpAnim = { t: 2.0, name: '黑洞' };
     audio.levelUpSound();
     state.flash = 0.5;
@@ -1560,9 +1563,9 @@ function update(dt) {
     if (state.supernovaT <= 0) {
       // Supernova ends → become neutron star (level 8)
       state.player.level = 8;
-      state.maxLevel = 8;
-      if (state.timeline[state.timeline.length - 1] !== LEVELS[8].name) {
-        state.timeline.push(LEVELS[8].name);
+      state.maxLevel = 9;
+      if (state.timeline[state.timeline.length - 1] !== LEVELS[9].name) {
+        state.timeline.push(LEVELS[9].name);
       }
       state.levelUpAnim = { t: 1.6, name: LEVELS[8].name };
       state.levelTimer = LEVEL_DURATION;
@@ -1624,6 +1627,7 @@ function update(dt) {
       if (d < state.player.radius + npc.radius * 0.5) {
         npc.dying = true;
         state.score += 20;
+        state.bhGrowth += LEVELS[npc.level].r * 0.15;
         state.floatingTexts.push(new FloatingText(npc.x, npc.y - 10, '+20', '#c080ff'));
         // Big implosion burst when swallowed
         const burstCount = 12 + Math.floor(Math.random() * 8);
@@ -1677,9 +1681,9 @@ function update(dt) {
     // When time expires → victory
     if (state.blackholeT <= 0) {
       state.phase = 'victory';
-      state.maxLevel = 8;
-      if (state.timeline[state.timeline.length - 1] !== LEVELS[8].name) {
-        state.timeline.push(LEVELS[8].name);
+      state.maxLevel = 9;
+      if (state.timeline[state.timeline.length - 1] !== LEVELS[9].name) {
+        state.timeline.push(LEVELS[9].name);
       }
       audio.victorySound();
       for (let i = 0; i < 60; i++) {
